@@ -1,0 +1,20 @@
+inherit_from: "configs/mono/euroc/base_config.yaml"
+
+Dataset:
+  dataset_path: "datasets/euroc/MH_02_easy"
+  Calibration:
+    fx: 458.654
+    fy: 457.296
+    cx: 367.215
+    cy: 248.375
+    k1: -0.28340811
+    k2: 0.07395907
+    p1: 0.00019359
+    p2: 1.76187114e-05
+    k3: 0.0
+    width: 752
+    height: 480
+    distorted: True
+
+
+
