@@ -11,6 +11,7 @@ from argparse import ArgumentParser
 import yaml
 from estimator import Estimator
 import torch.multiprocessing as mp
+import os
 
 
 last_imu_t = 0.0
@@ -22,6 +23,7 @@ margin_point_cloud_buf = Queue()
 campose_buf = Queue()
 keypose_buf = Queue()   #camera的keyposes   
 key_point_cloud_buf = Queue()
+key_point_cloud_incre_buf = Queue()
 
 
 
@@ -63,6 +65,11 @@ def key_point_cloud_callback(data):
         key_point_cloud_buf.put(data)
         con.notify()
 
+def key_point_cloud_incre_callback(data):
+    with m_buf:
+        key_point_cloud_incre_buf.put(data)
+        con.notify()
+
 def process(estimator : Estimator) :
 
     while not rospy.is_shutdown():
@@ -79,7 +86,7 @@ if __name__ == '__main__':
 
     # args = parser.parse_args()
     
-    with open("/home/wkx123/vins_ws/src/vins_gs/config/euroc/euroc.yaml", "r") as yml:
+    with open("/home/wkx/vins_ws/src/vins_gs/config/euroc/euroc.yaml", "r") as yml:
         config = yaml.safe_load(yml)
     
     mp.set_start_method("spawn")
@@ -92,13 +99,22 @@ if __name__ == '__main__':
     #rospy.Subscriber("/vins_estimator/odometry", Odometry, imu_odom_callback)
     #rospy.Subscriber("/vins_estimator/point_cloud", PointCloud, point_cloud_callback)
     #rospy.Subscriber("/vins_estimator/history_cloud", PointCloud, margin_cloud_callback)   #这两个先不用了 我们只处理关键帧的信息
-    rospy.Subscriber("/cam0/image_raw", Image, image_callback , queue_size=5)
-    rospy.Subscriber("/vins_estimator/camera_pose", Odometry, campose_callback , queue_size=5)
-    rospy.Subscriber("/vins_estimator/keyframe_pose", Odometry, keypose_callback , queue_size=5)
-    rospy.Subscriber("/vins_estimator/keyframe_point_incre", PointCloud, key_point_cloud_callback , queue_size=5)
+    #rospy.Subscriber("/cam0/image_raw", Image, image_callback , queue_size=200)
+    # rospy.Subscriber("/vins_estimator/camera_pose", Odometry, campose_callback , queue_size=100)
+    # rospy.Subscriber("/vins_estimator/keyframe_pose", Odometry, keypose_callback , queue_size=100)
+    # rospy.Subscriber("/vins_estimator/keyframe_point_incre", PointCloud, key_point_cloud_callback , queue_size=100)
     
     
-    
+    rospy.Subscriber("/cam0/image_raw", Image, image_callback , queue_size=30)    #real time rendering
+    rospy.Subscriber("/vins_estimator/camera_pose", Odometry, campose_callback , queue_size=10)
+    rospy.Subscriber("/vins_estimator/keyframe_pose", Odometry, keypose_callback , queue_size=10)
+    rospy.Subscriber("/vins_estimator/keyframe_point_incre", PointCloud, key_point_cloud_callback , queue_size=10)
+
+    # rospy.Subscriber("/cam0/image_raw", Image, image_callback )   #no need for real time rendering
+    # rospy.Subscriber("/vins_estimator/camera_pose", Odometry, campose_callback )
+    # rospy.Subscriber("/vins_estimator/keyframe_pose", Odometry, keypose_callback )
+    # rospy.Subscriber("/vins_estimator/keyframe_point", PointCloud, key_point_cloud_callback )
+    # #rospy.Subscriber("/vins_estimator/keyframe_point_incre", PointCloud, key_point_cloud_incre_callback )
 
     rate = rospy.Rate(10)  # 10Hzs
     process(gs_estimator)

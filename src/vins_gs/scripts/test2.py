@@ -176,16 +176,56 @@ import math
 
 
 
-print(math.atan(1))
-print(math.pi/4)
+# print(math.atan(1))
+# print(math.pi/4)
 
 
 
-a = np.array([[0.1 , 0.2, 0.3] , [0.4 , 0.5, 0.6] , [0.7 , 0.8, 0.9]])
-b = np.array([[True , False, True] , [False , False, True] , [True , False, True]])
-c = a[b]
-c[0] = 1
-print(a)
-ind1 = np.array([0 , 2 , 1 , 1 , 2])
-ind2 = np.array([0 , 0 , 1 , 2 ,1])
-print(a[ind1 , ind2])
+# a = np.array([[0.1 , 0.2, 0.3] , [0.4 , 0.5, 0.6] , [0.7 , 0.8, 0.9]])
+# b = np.array([[True , False, True] , [False , False, True] , [True , False, True]])
+# c = a[b]
+# c[0] = 1
+# print(a)
+# ind1 = np.array([0 , 2 , 1 , 1 , 2])
+# ind2 = np.array([0 , 0 , 1 , 2 ,1])
+# print(a[ind1 , ind2])
+
+
+import numpy as np
+import torch
+import time
+
+# 设置矩阵大小
+matrix_size = 10000
+
+# 使用numpy在CPU上计算
+a_np = np.random.rand(matrix_size, matrix_size)
+b_np = np.random.rand(matrix_size, matrix_size)
+
+start_time = time.time()
+result_np = np.dot(a_np, b_np)
+end_time = time.time()
+
+print("NumPy (CPU) computation time: {:.4f} seconds".format(end_time - start_time))
+
+# 使用PyTorch在GPU上计算
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+a_torch = torch.rand(matrix_size, matrix_size, device=device)
+b_torch = torch.rand(matrix_size, matrix_size, device=device)
+
+start_time = time.time()
+result_torch = torch.mm(a_torch, b_torch)
+torch.cuda.synchronize()  # 等待所有CUDA操作完成
+end_time = time.time()
+
+print("PyTorch (GPU) computation time: {:.4f} seconds".format(end_time - start_time))
+
+# 使用PyTorch在CPU上计算
+a_torch_cpu = torch.rand(matrix_size, matrix_size)
+b_torch_cpu = torch.rand(matrix_size, matrix_size)
+
+start_time = time.time()
+result_torch_cpu = torch.mm(a_torch_cpu, b_torch_cpu)
+end_time = time.time()
+
+print("PyTorch (CPU) computation time: {:.4f} seconds".format(end_time - start_time))

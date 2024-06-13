@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 2.8.3)
 project(pose_graph)
 
 set(CMAKE_BUILD_TYPE "Release")
-set(CMAKE_CXX_FLAGS "-std=c++11")
+set(CMAKE_CXX_FLAGS "-std=c++14")
 #-DEIGEN_USE_MKL_ALL")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -g")
 
-#set(OpenCV_DIR "/usr/local/share/OpenCV/")
-set(cv_bridge_DIR "/home/wkx123/cv_bridge_ws/devel/share/cv_bridge/cmake")
+set(OpenCV_DIR "/usr/local/share/OpenCV/")
+set(cv_bridge_DIR "/home/wkx/cv_bridge_ws/devel/share/cv_bridge/cmake")
 find_package(catkin REQUIRED COMPONENTS
     roscpp
     std_msgs
@@ -17,7 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
     roslib
     )
 
-find_package(OpenCV 3.4 REQUIRED)
+find_package(OpenCV 3 REQUIRED)
 
 
 find_package(Ceres REQUIRED)

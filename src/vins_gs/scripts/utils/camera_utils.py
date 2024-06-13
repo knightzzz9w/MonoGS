@@ -22,7 +22,7 @@ class Camera(nn.Module):
         self,
         uid,
         color,
-        depth,
+        depth, 
         gt_T,
         projection_matrix,
         fx,
@@ -33,24 +33,29 @@ class Camera(nn.Module):
         fovy,
         image_height,
         image_width,
+        trian_depthmap = None,
+        trian_depthmask = None,
+        T = torch.eye(4).to("cuda") ,
         device="cuda:0",
     ):
         super(Camera, self).__init__()
         self.uid = uid
         self.device = device
 
-        T = torch.eye(4, device=device)
         self.R = T[:3, :3]
         self.T = T[:3, 3]
-        if gt_T is not None:
-            self.R_gt = gt_T[:3, :3]
-            self.T_gt = gt_T[:3, 3]
-        else: 
-            self.R_gt = None
-            self.T_gt = None
-
+        self.R_gt = gt_T[:3, :3]
+        self.T_gt = gt_T[:3, 3]
         self.original_image = color  #已经是torch的格式
         self.depth = depth
+        if trian_depthmap is None:
+            self.trian_depthmap = torch.zeros((1 , image_height , image_width) , dtype = torch.float).cuda()
+        else:
+            self.trian_depthmap = trian_depthmap
+        if trian_depthmask is None:
+            self.trian_depthmask = torch.zeros((1 , image_height , image_width) , dtype = torch.bool).cuda()
+        else:
+            self.trian_depthmask = trian_depthmask
         self.grad_mask = None
 
         self.fx = fx

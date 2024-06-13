@@ -14,6 +14,7 @@ from utils.slam_utils import get_loss_mapping
 from gui import gui_utils
 import numpy as np
 import cv2
+from utils.convert_stamp import TicToc
 
 class BackEnd(mp.Process):
     def __init__(self, config):
@@ -87,8 +88,8 @@ class BackEnd(mp.Process):
         while not self.backend_queue.empty():
             self.backend_queue.get()
 
-    def initialize_map(self, cur_frame_idx, viewpoint):
-        for mapping_iteration in range(20):
+    def initialize_map(self, cur_frame_idx, viewpoint ):
+        for mapping_iteration in range(self.init_itr_num):
             self.iteration_count += 1
             render_pkg = render(
                 viewpoint, self.gaussians, self.pipeline_params, self.background
@@ -98,7 +99,7 @@ class BackEnd(mp.Process):
                 viewspace_point_tensor,
                 visibility_filter,
                 radii,
-                depth,
+                depth,  #render depth
                 opacity,
                 n_touched,
             ) = (
@@ -111,7 +112,7 @@ class BackEnd(mp.Process):
                 render_pkg["n_touched"],
             )
             loss_init = get_loss_mapping(
-                self.config, image, depth, viewpoint, opacity, initialization=True
+                self.config, image, depth, viewpoint, opacity, initialization=True 
             )
             loss_init.backward()
 
@@ -124,6 +125,7 @@ class BackEnd(mp.Process):
                     viewspace_point_tensor, visibility_filter
                 )
                 if mapping_iteration % self.init_gaussian_update == 0:
+                    
                     self.gaussians.densify_and_prune(
                         self.opt_params.densify_grad_threshold,
                         self.init_gaussian_th,
@@ -141,15 +143,16 @@ class BackEnd(mp.Process):
 
         self.occ_aware_visibility[cur_frame_idx] = (n_touched > 0).long()
         Log("Initialized map")
-        image_cur = render_pkg["render"]
-        numpy_image = cv2.cvtColor((image_cur*255).detach().cpu().numpy().transpose(1,2,0), cv2.COLOR_RGB2BGR)
-        cv2.imwrite("/home/wkx123/1.png",numpy_image)
         return render_pkg
 
     def map(self, current_window, prune=False, iters=1):
         if len(current_window) == 0:
             return
-
+        if prune:
+            print("prune !")
+        #print("mapping iter is " , iters)
+        map_time = TicToc()
+        map_time.tic()
         viewpoint_stack = [self.viewpoints[kf_idx] for kf_idx in current_window]
         random_viewpoint_stack = []
         frames_to_optimize = self.config["Training"]["pose_window"]
@@ -248,6 +251,8 @@ class BackEnd(mp.Process):
 
                 # # compute the visibility of the gaussians
                 # # Only prune on the last iteration and when we have full window
+                # prune_time = TicToc()
+                # prune_time.tic()
                 if prune:
                     if len(current_window) == self.config["Training"]["window_size"]:
                         prune_mode = self.config["Training"]["prune_mode"]
@@ -289,12 +294,16 @@ class BackEnd(mp.Process):
                     self.gaussians.add_densification_stats(
                         viewspace_point_tensor_acm[idx], visibility_filter_acm[idx]
                     )
+              
 
                 update_gaussian = (
                     self.iteration_count % self.gaussian_update_every
                     == self.gaussian_update_offset
                 )
+
                 if update_gaussian:
+                    print("Densify and prune !!")
+                    print("Gaussian points size before split is " , self.gaussians._xyz.shape)
                     self.gaussians.densify_and_prune(
                         self.opt_params.densify_grad_threshold,
                         self.gaussian_th,
@@ -302,6 +311,7 @@ class BackEnd(mp.Process):
                         self.size_threshold,
                     )
                     gaussian_split = True
+                    print("Gaussian points size after split is " , self.gaussians._xyz.shape) 
 
                 ## Opacity reset
                 if (self.iteration_count % self.gaussian_reset) == 0 and (
@@ -322,6 +332,8 @@ class BackEnd(mp.Process):
                     if viewpoint.uid == 0:
                         continue
                     update_pose(viewpoint)
+        
+        print("mapping cost " , map_time.toc() , "ms")
         return gaussian_split
 
     def color_refinement(self):
@@ -369,12 +381,13 @@ class BackEnd(mp.Process):
             tag = "sync_backend"
 
         msg = [tag, clone_obj(self.gaussians), self.occ_aware_visibility, keyframes]
-        print("push to frontend , gaussian size is ", self.gaussians._xyz.shape)
+        print("push to frontend  and tag is " ,  tag  ,  "gaussian size is ", self.gaussians._xyz.shape)
         self.frontend_queue.put(msg)
 
     def run(self):
         while True:
             if self.backend_queue.empty():
+                
                 if self.pause:
                     time.sleep(0.01)
                     continue
@@ -388,6 +401,8 @@ class BackEnd(mp.Process):
                 self.map(self.current_window)
                 if self.last_sent >= 10:
                     self.map(self.current_window, prune=True, iters=10)
+                    print("empty backend")
+                    print("finish mapping and push to frontend")
                     self.push_to_frontend()
             else:
                 data = self.backend_queue.get()
@@ -399,6 +414,7 @@ class BackEnd(mp.Process):
                     self.pause = False
                 elif data[0] == "color_refinement":
                     self.color_refinement()
+                    print("finish color_refinement and push to frontend")
                     self.push_to_frontend()
                 elif data[0] == "init":
                     cur_frame_idx = data[1]
@@ -410,8 +426,9 @@ class BackEnd(mp.Process):
                     self.viewpoints[cur_frame_idx] = viewpoint
                     self.add_next_kf(
                         cur_frame_idx, viewpoint, depth_map=depth_map, init=True
-                    )
-                    self.initialize_map(cur_frame_idx, viewpoint)
+                    )  #not used yet
+                    self.initialize_map(cur_frame_idx, viewpoint )
+                    print("finish init and push to frontend")
                     self.push_to_frontend("init")
 
                 elif data[0] == "keyframe":
@@ -478,8 +495,12 @@ class BackEnd(mp.Process):
                         )
                     self.keyframe_optimizers = torch.optim.Adam(opt_params)
 
-                    self.map(self.current_window, iters=iter_per_kf)
-                    self.map(self.current_window, prune=True)
+                    print("adding keyframes !")
+                    map_time = TicToc() ; map_time.tic()
+                    self.map(self.current_window,  iters=iter_per_kf)
+                    print("Keyframe !!!  Mapping iter  " ,iter_per_kf, "  time is " , map_time.toc() , "ms")
+                    self.map(self.current_window,  prune=False)
+                    print("prune time is " , map_time.toc() , "ms")
                     self.push_to_frontend("keyframe")
                 else:
                     raise Exception("Unprocessed data", data)
